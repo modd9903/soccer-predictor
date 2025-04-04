@@ -12,6 +12,18 @@ st.title("⚽ Soccer Match Predictor (XGBoost + Intuition + Accuracy Tracking)")
 if 'history' not in st.session_state:
     st.session_state.history = []
 
+# --- Cached Model ---
+@st.cache_resource
+def load_model():
+    np.random.seed(42)
+    X_dummy = np.random.normal(loc=0, scale=1, size=(300, 8))
+    y_dummy = np.random.choice([0, 1, 2], 300)
+    model = XGBClassifier(use_label_encoder=False, eval_metric='mlogloss')
+    model.fit(X_dummy, y_dummy)
+    return model
+
+clf = load_model()
+
 # --- Team Input ---
 st.header("Team Info")
 home_team = st.text_input("Home Team")
@@ -109,14 +121,6 @@ if st.button("Predict Match Result"):
                           star_power_away - missing_penalty_away,
                           h2h_score, intuition_boost]])
 
-    # --- Semi-structured synthetic training data ---
-    np.random.seed(42)
-    X_dummy = np.random.normal(loc=0, scale=1, size=(300, 8))
-    y_dummy = np.random.choice([0, 1, 2], 300)
-
-    clf = XGBClassifier(use_label_encoder=False, eval_metric='mlogloss')
-    clf.fit(X_dummy, y_dummy)
-
     pred = clf.predict(features)[0]
     prob = clf.predict_proba(features)[0]
 
@@ -133,7 +137,7 @@ if st.button("Predict Match Result"):
     net_strength_home = goals_score_home + (star_power_home - missing_penalty_home) / 10 + form_score_home
     net_strength_away = goals_score_away + (star_power_away - missing_penalty_away) / 10 + form_score_away
 
-    total_strength = net_strength_home + net_strength_away + 0.01  # avoid zero division
+    total_strength = net_strength_home + net_strength_away + 0.01
     expected_goals_home = round(2.5 * (net_strength_home / total_strength), 1)
     expected_goals_away = round(2.5 * (net_strength_away / total_strength), 1)
 
