@@ -1,11 +1,16 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
 # --- Title ---
-st.title("⚽ Soccer Match Predictor (ML + Intuition)")
+st.title("⚽ Soccer Match Predictor (ML + Intuition + Accuracy Tracking)")
+
+# --- Session State for Logging ---
+if 'history' not in st.session_state:
+    st.session_state.history = []
 
 # --- Team Input ---
 st.header("Team Info")
@@ -42,8 +47,10 @@ h2h_results = st.text_area("One per line (e.g. Arsenal 2-1 Liverpool)")
 st.header("Intuition Boost")
 intuition_boost = st.slider("Your gut feeling (favor home -1.0 to 1.0 favor away)", -1.0, 1.0, 0.0, step=0.1)
 
+# --- Optional Actual Result Entry ---
+actual_result = st.selectbox("Actual Result (if known)", ["--", "Home Win", "Draw", "Away Win"])
+
 if st.button("Predict Match Result"):
-    # --- Helper Functions ---
     def parse_form(form):
         scores = {'W': 3, 'D': 1, 'L': 0}
         return sum([scores.get(x.strip(), 0) for x in form.split('-')]) / (len(form.split('-')) * 3)
@@ -102,10 +109,10 @@ if st.button("Predict Match Result"):
                           star_power_away - missing_penalty_away,
                           h2h_score, intuition_boost]])
 
-    # --- Dummy Training Data (mocked) ---
+    # --- Semi-structured synthetic training data ---
     np.random.seed(42)
-    X_dummy = np.random.rand(300, 8) * 2 - 1
-    y_dummy = np.random.choice([0, 1, 2], 300)  # 0 = Draw, 1 = Home Win, 2 = Away Win
+    X_dummy = np.random.normal(loc=0, scale=1, size=(300, 8))
+    y_dummy = np.random.choice([0, 1, 2], 300)
 
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     clf.fit(X_dummy, y_dummy)
@@ -122,12 +129,11 @@ if st.button("Predict Match Result"):
     st.write(f"**Predicted Result:** {result}")
     st.write(f"**Confidence Level:** {confidence}%")
 
-    # --- Score Estimate (same as before) ---
     predicted_home_goals = round(home_goals_scored * (1 - missing_penalty_home / 20), 1)
     predicted_away_goals = round(away_goals_scored * (1 - missing_penalty_away / 20), 1)
     st.write(f"**Predicted Scoreline:** {home_team} {predicted_home_goals} - {predicted_away_goals} {away_team}")
 
-    # --- Confidence Breakdown Chart ---
+    # --- Probability Chart ---
     st.subheader("🔍 Win Probability Distribution")
     fig, ax = plt.subplots()
     ax.bar([f"{home_team} Win", "Draw", f"{away_team} Win"], prob, color=['green', 'gray', 'red'])
@@ -145,3 +151,25 @@ if st.button("Predict Match Result"):
     st.write("**Net Star Power (away):**", round(star_power_away - missing_penalty_away, 2))
     st.write("**H2H Advantage (0-1):**", round(h2h_score, 2))
     st.write("**Intuition Boost:**", intuition_boost)
+
+    # --- Save to History ---
+    outcome_map = {"Home Win": f"{home_team} Win", "Draw": "Draw", "Away Win": f"{away_team} Win"}
+    correctness = "✅" if (actual_result != "--" and result == outcome_map.get(actual_result)) else "❌" if actual_result != "--" else "N/A"
+
+    st.session_state.history.append({
+        "Match": f"{home_team} vs {away_team}",
+        "Prediction": result,
+        "Confidence": confidence,
+        "Actual": actual_result if actual_result != "--" else "(Not entered)",
+        "Correct": correctness
+    })
+
+    # --- Show History Table ---
+    if st.session_state.history:
+        st.subheader("📊 Prediction History")
+        df = pd.DataFrame(st.session_state.history)
+        st.dataframe(df)
+        correct_preds = df[df['Correct'] == "✅"].shape[0]
+        total_preds = df[df['Correct'].isin(["✅", "❌"])].shape[0]
+        if total_preds > 0:
+            st.success(f"Accuracy so far: {correct_preds}/{total_preds} ({(correct_preds/total_preds)*100:.1f}%)")
