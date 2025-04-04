@@ -2,11 +2,11 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split
 
 # --- Title ---
-st.title("⚽ Soccer Match Predictor (ML + Intuition + Accuracy Tracking)")
+st.title("⚽ Soccer Match Predictor (XGBoost + Intuition + Accuracy Tracking)")
 
 # --- Session State for Logging ---
 if 'history' not in st.session_state:
@@ -114,7 +114,7 @@ if st.button("Predict Match Result"):
     X_dummy = np.random.normal(loc=0, scale=1, size=(300, 8))
     y_dummy = np.random.choice([0, 1, 2], 300)
 
-    clf = RandomForestClassifier(n_estimators=100, random_state=42)
+    clf = XGBClassifier(use_label_encoder=False, eval_metric='mlogloss')
     clf.fit(X_dummy, y_dummy)
 
     pred = clf.predict(features)[0]
