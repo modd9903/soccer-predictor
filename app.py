@@ -12,12 +12,12 @@ st.title("⚽ Soccer Match Predictor (XGBoost + Intuition + Accuracy Tracking)")
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- Cached Model ---
+# --- Cached Model (Faster) ---
 @st.cache_resource
 def load_model():
     np.random.seed(42)
-    X_dummy = np.random.normal(loc=0, scale=1, size=(300, 8))
-    y_dummy = np.random.choice([0, 1, 2], 300)
+    X_dummy = np.random.normal(loc=0, scale=1, size=(100, 8))  # reduced from 300 to 100
+    y_dummy = np.random.choice([0, 1, 2], 100)
     model = XGBClassifier(use_label_encoder=False, eval_metric='mlogloss')
     model.fit(X_dummy, y_dummy)
     return model
@@ -128,11 +128,6 @@ if st.button("Predict Match Result"):
     result = result_label[pred]
     confidence = round(np.max(prob) * 100, 1)
 
-    # --- Display Result ---
-    st.subheader("\U0001F3C1 Prediction Result (ML + Intuition)")
-    st.write(f"**Predicted Result:** {result}")
-    st.write(f"**Confidence Level:** {confidence}%")
-
     # --- Improved Scoreline Estimation ---
     net_strength_home = goals_score_home + (star_power_home - missing_penalty_home) / 10 + form_score_home
     net_strength_away = goals_score_away + (star_power_away - missing_penalty_away) / 10 + form_score_away
@@ -141,6 +136,14 @@ if st.button("Predict Match Result"):
     expected_goals_home = round(2.5 * (net_strength_home / total_strength), 1)
     expected_goals_away = round(2.5 * (net_strength_away / total_strength), 1)
 
+    # Adjust predicted result based on scoreline closeness
+    if abs(expected_goals_home - expected_goals_away) <= 0.4:
+        result = "Draw"
+
+    # --- Display Result ---
+    st.subheader("\U0001F3C1 Prediction Result (ML + Intuition)")
+    st.write(f"**Predicted Result:** {result}")
+    st.write(f"**Confidence Level:** {confidence:.1f}%")
     st.write(f"**Predicted Scoreline:** {home_team} {expected_goals_home} - {expected_goals_away} {away_team}")
 
     # --- Probability Chart ---
@@ -169,7 +172,7 @@ if st.button("Predict Match Result"):
     st.session_state.history.append({
         "Match": f"{home_team} vs {away_team}",
         "Prediction": result,
-        "Confidence": confidence,
+        "Confidence": f"{confidence:.1f}%",
         "Actual": actual_result if actual_result != "--" else "(Not entered)",
         "Correct": correctness
     })
