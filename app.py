@@ -129,9 +129,15 @@ if st.button("Predict Match Result"):
     st.write(f"**Predicted Result:** {result}")
     st.write(f"**Confidence Level:** {confidence}%")
 
-    predicted_home_goals = round(home_goals_scored * (1 - missing_penalty_home / 20), 1)
-    predicted_away_goals = round(away_goals_scored * (1 - missing_penalty_away / 20), 1)
-    st.write(f"**Predicted Scoreline:** {home_team} {predicted_home_goals} - {predicted_away_goals} {away_team}")
+    # --- Improved Scoreline Estimation ---
+    net_strength_home = goals_score_home + (star_power_home - missing_penalty_home) / 10 + form_score_home
+    net_strength_away = goals_score_away + (star_power_away - missing_penalty_away) / 10 + form_score_away
+
+    total_strength = net_strength_home + net_strength_away + 0.01  # avoid zero division
+    expected_goals_home = round(2.5 * (net_strength_home / total_strength), 1)
+    expected_goals_away = round(2.5 * (net_strength_away / total_strength), 1)
+
+    st.write(f"**Predicted Scoreline:** {home_team} {expected_goals_home} - {expected_goals_away} {away_team}")
 
     # --- Probability Chart ---
     st.subheader("🔍 Win Probability Distribution")
