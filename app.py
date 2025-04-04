@@ -1,5 +1,6 @@
 import streamlit as st
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
@@ -117,7 +118,7 @@ if st.button("Predict Match Result"):
     confidence = round(np.max(prob) * 100, 1)
 
     # --- Display Result ---
-    st.subheader("🏁 Prediction Result (ML + Intuition)")
+    st.subheader("\U0001F3C1 Prediction Result (ML + Intuition)")
     st.write(f"**Predicted Result:** {result}")
     st.write(f"**Confidence Level:** {confidence}%")
 
@@ -125,3 +126,22 @@ if st.button("Predict Match Result"):
     predicted_home_goals = round(home_goals_scored * (1 - missing_penalty_home / 20), 1)
     predicted_away_goals = round(away_goals_scored * (1 - missing_penalty_away / 20), 1)
     st.write(f"**Predicted Scoreline:** {home_team} {predicted_home_goals} - {predicted_away_goals} {away_team}")
+
+    # --- Confidence Breakdown Chart ---
+    st.subheader("🔍 Win Probability Distribution")
+    fig, ax = plt.subplots()
+    ax.bar([f"{home_team} Win", "Draw", f"{away_team} Win"], prob, color=['green', 'gray', 'red'])
+    ax.set_ylabel("Probability")
+    ax.set_ylim(0, 1)
+    st.pyplot(fig)
+
+    # --- Feature Explanation ---
+    st.subheader("🧠 Feature Influence Snapshot")
+    st.write("**Form Score (home):**", round(form_score_home, 2))
+    st.write("**Form Score (away):**", round(form_score_away, 2))
+    st.write("**Goal Score (home):**", round(goals_score_home, 2))
+    st.write("**Goal Score (away):**", round(goals_score_away, 2))
+    st.write("**Net Star Power (home):**", round(star_power_home - missing_penalty_home, 2))
+    st.write("**Net Star Power (away):**", round(star_power_away - missing_penalty_away, 2))
+    st.write("**H2H Advantage (0-1):**", round(h2h_score, 2))
+    st.write("**Intuition Boost:**", intuition_boost)
