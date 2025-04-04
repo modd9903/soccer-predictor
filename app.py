@@ -53,20 +53,36 @@ if st.button("Predict Match Result"):
 
     def parse_h2h(h2h):
         home_wins = away_wins = draws = 0
-        for line in h2h.strip().split('\n'):
-            if home_team in line and away_team in line:
-                if line.startswith(home_team):
-                    scores = [int(s) for s in line.split() if s.isdigit()]
-                else:
-                    scores = list(reversed([int(s) for s in line.split() if s.isdigit()]))
-                if scores[0] > scores[1]:
-                    home_wins += 1
-                elif scores[0] < scores[1]:
-                    away_wins += 1
-                else:
-                    draws += 1
-        total = home_wins * 3 + draws
-        return total / (len(h2h.strip().split('\n')) * 3)
+        lines = h2h.strip().split('\n')
+        for line in lines:
+            try:
+                if home_team in line and away_team in line:
+                    parts = line.split()
+                    home_index = parts.index(home_team.split()[0])
+                    away_index = parts.index(away_team.split()[0])
+
+                    scores = [int(s.split('-')[0]) if '-' in s else None for s in parts if '-' in s or s.isdigit()]
+                    if len(scores) < 2:
+                        continue
+
+                    if line.startswith(home_team):
+                        home_score, away_score = scores[0], scores[1]
+                    else:
+                        away_score, home_score = scores[0], scores[1]
+
+                    if home_score > away_score:
+                        home_wins += 1
+                    elif home_score < away_score:
+                        away_wins += 1
+                    else:
+                        draws += 1
+            except:
+                continue
+
+        total_games = home_wins + away_wins + draws
+        if total_games == 0:
+            return 0.5
+        return (home_wins * 3 + draws) / (total_games * 3)
 
     # --- Calculate Scores ---
     form_score_home = parse_form(home_form)
