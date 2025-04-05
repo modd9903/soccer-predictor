@@ -1,10 +1,8 @@
-
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from xgboost import XGBClassifier
-from sklearn.model_selection import train_test_split
 
 # --- Title ---
 st.title("⚽ Soccer Match Predictor (XGBoost + Intuition + Accuracy Tracking)")
@@ -77,6 +75,7 @@ intuition_boost = st.slider("Your gut feeling (favor home -1.0 to 1.0 favor away
 actual_result = st.selectbox("Actual Result (if known)", ["--", "Home Win", "Draw", "Away Win"])
 
 if st.button("Predict Match Result"):
+
     def parse_form(form):
         scores = {'W': 3, 'D': 1, 'L': 0}
         return sum([scores.get(x.strip(), 0) for x in form.split('-')]) / (len(form.split('-')) * 3)
@@ -118,6 +117,7 @@ if st.button("Predict Match Result"):
             return 0.5
         return (home_wins * 3 + draws) / (total_games * 3)
 
+    # Feature extraction
     form_score_home = parse_form(home_form)
     form_score_away = parse_form(away_form)
     goals_score_home = home_goals_scored - home_goals_conceded
@@ -137,19 +137,21 @@ if st.button("Predict Match Result"):
                           (home_shot_accuracy - away_shot_accuracy) / 100,
                           importance_score]])
 
+    # ML Prediction
     pred = clf.predict(features)[0]
     prob = clf.predict_proba(features)[0]
-
     result_label = ["Draw", f"{home_team} Win", f"{away_team} Win"]
     original_result = result_label[pred]
     confidence = round(np.max(prob) * 100, 1)
 
+    # Expected scoreline logic
     net_strength_home = goals_score_home + (star_power_home - missing_penalty_home) / 10 + form_score_home
     net_strength_away = goals_score_away + (star_power_away - missing_penalty_away) / 10 + form_score_away
     total_strength = net_strength_home + net_strength_away + 0.01
     expected_goals_home = round(max(0, 2.5 * (net_strength_home / total_strength)), 1)
     expected_goals_away = round(max(0, 2.5 * (net_strength_away / total_strength)), 1)
 
+    # Final prediction based on scoreline
     if abs(expected_goals_home - expected_goals_away) <= 0.4:
         result = "Draw"
     elif expected_goals_home > expected_goals_away:
@@ -157,6 +159,7 @@ if st.button("Predict Match Result"):
     else:
         result = f"{away_team} Win"
 
+    # --- Display ---
     st.subheader("🏁 Prediction Result (ML + Intuition)")
     st.write(f"**Predicted Result:** {result}")
     st.write(f"**Confidence Level:** {confidence:.1f}%")
@@ -184,23 +187,3 @@ if st.button("Predict Match Result"):
     st.write("**Shot Accuracy Diff:**", home_shot_accuracy - away_shot_accuracy)
     st.write("**xG / xGA (home):**", f"{home_xg}/{home_xga}")
     st.write("**xG / xGA (away):**", f"{away_xg}/{away_xga}")
-
-    outcome_map = {"Home Win": f"{home_team} Win", "Draw": "Draw", "Away Win": f"{away_team} Win"}
-    correctness = "✅" if (actual_result != "--" and result == outcome_map.get(actual_result)) else "❌" if actual_result != "--" else "N/A"
-
-    st.session_state.history.append({
-        "Match": f"{home_team} vs {away_team}",
-        "Prediction": result,
-        "Confidence": f"{confidence:.1f}%",
-        "Actual": actual_result if actual_result != "--" else "(Not entered)",
-        "Correct": correctness
-    })
-
-    if st.session_state.history:
-        st.subheader("📊 Prediction History")
-        df = pd.DataFrame(st.session_state.history)
-        st.dataframe(df)
-        correct_preds = df[df['Correct'] == "✅"].shape[0]
-        total_preds = df[df['Correct'].isin(["✅", "❌"])].shape[0]
-        if total_preds > 0:
-            st.success(f"Accuracy so far: {correct_preds}/{total_preds} ({(correct_preds/total_preds)*100:.1f}%)")
