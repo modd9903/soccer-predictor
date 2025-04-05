@@ -1,6 +1,8 @@
 streamlit
-scikit-learn
-numpy
-matplotlib
-pandas
 xgboost
+numpy
+pandas
+matplotlib
+scikit-learn
+beautifulsoup4
+requests
