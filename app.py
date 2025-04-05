@@ -1,3 +1,4 @@
+
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
@@ -117,7 +118,6 @@ if st.button("Predict Match Result"):
             return 0.5
         return (home_wins * 3 + draws) / (total_games * 3)
 
-    # --- Extract Inputs ---
     form_score_home = parse_form(home_form)
     form_score_away = parse_form(away_form)
     goals_score_home = home_goals_scored - home_goals_conceded
@@ -140,20 +140,16 @@ if st.button("Predict Match Result"):
     pred = clf.predict(features)[0]
     prob = clf.predict_proba(features)[0]
 
-    # Save raw model result
     result_label = ["Draw", f"{home_team} Win", f"{away_team} Win"]
     original_result = result_label[pred]
-    result = original_result
     confidence = round(np.max(prob) * 100, 1)
 
-    # Estimate scoreline
     net_strength_home = goals_score_home + (star_power_home - missing_penalty_home) / 10 + form_score_home
     net_strength_away = goals_score_away + (star_power_away - missing_penalty_away) / 10 + form_score_away
     total_strength = net_strength_home + net_strength_away + 0.01
     expected_goals_home = round(max(0, 2.5 * (net_strength_home / total_strength)), 1)
     expected_goals_away = round(max(0, 2.5 * (net_strength_away / total_strength)), 1)
 
-    # Override result if scoreline suggests otherwise
     if abs(expected_goals_home - expected_goals_away) <= 0.4:
         result = "Draw"
     elif expected_goals_home > expected_goals_away:
@@ -161,7 +157,6 @@ if st.button("Predict Match Result"):
     else:
         result = f"{away_team} Win"
 
-    # --- Output ---
     st.subheader("🏁 Prediction Result (ML + Intuition)")
     st.write(f"**Predicted Result:** {result}")
     st.write(f"**Confidence Level:** {confidence:.1f}%")
