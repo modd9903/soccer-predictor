@@ -147,8 +147,8 @@ if st.button("Predict Match Result"):
     net_strength_home = goals_score_home + (star_power_home - missing_penalty_home) / 10 + form_score_home
     net_strength_away = goals_score_away + (star_power_away - missing_penalty_away) / 10 + form_score_away
     total_strength = net_strength_home + net_strength_away + 0.01
-    expected_goals_home = round(2.5 * (net_strength_home / total_strength), 1)
-    expected_goals_away = round(2.5 * (net_strength_away / total_strength), 1)
+    expected_goals_home = round(max(0, 2.5 * (net_strength_home / total_strength)), 1)
+    expected_goals_away = round(max(0, 2.5 * (net_strength_away / total_strength)), 1)
 
     if abs(expected_goals_home - expected_goals_away) <= 0.4:
         result = "Draw"
@@ -165,7 +165,7 @@ if st.button("Predict Match Result"):
     ax.set_ylim(0, 1)
     st.pyplot(fig)
 
-    st.subheader("🧠 Feature Influence Snapshot")
+    st.subheader("🧐 Feature Influence Snapshot")
     st.write("**Form Score (home):**", round(form_score_home, 2))
     st.write("**Form Score (away):**", round(form_score_away, 2))
     st.write("**Goal Score (home):**", round(goals_score_home, 2))
