@@ -1,23 +1,18 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
-import requests
-from bs4 import BeautifulSoup
-import re
+import matplotlib.pyplot as plt
 from xgboost import XGBClassifier
 
 # --- Title ---
-st.title("⚽ Soccer Match Predictor (XGBoost + Intuition + Live Stats Option)")
+st.title("⚽ Soccer Match Predictor (Paste Stats + ML + Intuition)")
 
-# --- Session State for Logging ---
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- Cached Model (Faster) ---
+# --- Load Dummy Model ---
 @st.cache_resource
 def load_model():
-    np.random.seed(42)
     X_dummy = np.random.normal(loc=0, scale=1, size=(100, 11))
     y_dummy = np.random.choice([0, 1, 2], 100)
     model = XGBClassifier(use_label_encoder=False, eval_metric='mlogloss')
@@ -26,100 +21,92 @@ def load_model():
 
 clf = load_model()
 
-# --- Optional Understat Link ---
-st.header("Paste Understat Match Link (optional)")
-understat_url = st.text_input("Understat Match URL (e.g. https://understat.com/match/20530)")
+# --- 📋 Paste-Based Stats Parser ---
+st.subheader("📋 Paste Match Stats Block")
+stats_block = st.text_area("Example:\nMatch: Man City vs Arsenal\nxG: 2.1 - 1.4\nGoals: 3 - 1\nPossession: 62 - 38\nShot Accuracy: 70 - 55", height=120)
 
-# --- Team Input ---
+auto_data = {}
+if stats_block:
+    try:
+        lines = stats_block.strip().split('\n')
+        for line in lines:
+            if "match:" in line.lower():
+                teams = line.split(":")[1].strip()
+                home, away = [x.strip() for x in teams.split("vs")]
+                auto_data["home_team"] = home
+                auto_data["away_team"] = away
+            elif "xg:" in line.lower():
+                xg = [float(x.strip()) for x in line.split(":")[1].split("-")]
+                auto_data["home_xg"], auto_data["away_xg"] = xg
+            elif "goals:" in line.lower():
+                goals = [float(x.strip()) for x in line.split(":")[1].split("-")]
+                auto_data["home_goals"], auto_data["away_goals"] = goals
+            elif "possession:" in line.lower():
+                pos = [int(x.strip()) for x in line.split(":")[1].split("-")]
+                auto_data["home_possession"], auto_data["away_possession"] = pos
+            elif "shot accuracy:" in line.lower():
+                acc = [int(x.strip()) for x in line.split(":")[1].split("-")]
+                auto_data["home_shot_accuracy"], auto_data["away_shot_accuracy"] = acc
+        st.success("✅ Stats block parsed successfully.")
+    except:
+        st.error("❌ Failed to parse. Check format.")
+
+# --- Inputs ---
 st.header("Team Info")
-home_team = st.text_input("Home Team")
-away_team = st.text_input("Away Team")
+home_team = st.text_input("Home Team", auto_data.get("home_team", ""))
+away_team = st.text_input("Away Team", auto_data.get("away_team", ""))
 
-# --- Recent Form ---
-st.header("Recent Form (last 5 games)")
+st.header("Team Stats")
+home_goals_scored = st.number_input("Home Avg Goals Scored", value=auto_data.get("home_goals", 0.0))
+home_goals_conceded = st.number_input("Home Avg Goals Conceded", value=0.0)
+away_goals_scored = st.number_input("Away Avg Goals Scored", value=auto_data.get("away_goals", 0.0))
+away_goals_conceded = st.number_input("Away Avg Goals Conceded", value=0.0)
+
+home_possession = st.slider("Home Possession (%)", 0, 100, auto_data.get("home_possession", 50))
+away_possession = st.slider("Away Possession (%)", 0, 100, auto_data.get("away_possession", 50))
+home_shot_accuracy = st.slider("Home Shot Accuracy (%)", 0, 100, auto_data.get("home_shot_accuracy", 50))
+away_shot_accuracy = st.slider("Away Shot Accuracy (%)", 0, 100, auto_data.get("away_shot_accuracy", 50))
+
+home_xg = st.number_input("Home xG", value=auto_data.get("home_xg", 0.0))
+home_xga = st.number_input("Home xGA", value=0.0)
+away_xg = st.number_input("Away xG", value=auto_data.get("away_xg", 0.0))
+away_xga = st.number_input("Away xGA", value=0.0)
+
+st.header("Recent Form")
 home_form = st.text_input("Home Form (e.g. W-W-L-D-W)")
 away_form = st.text_input("Away Form")
 
-# --- Team Stats ---
-st.header("Team Performance Stats")
-home_goals_scored = st.number_input("Home Avg Goals Scored", min_value=0.0)
-home_goals_conceded = st.number_input("Home Avg Goals Conceded", min_value=0.0)
-away_goals_scored = st.number_input("Away Avg Goals Scored", min_value=0.0)
-away_goals_conceded = st.number_input("Away Avg Goals Conceded", min_value=0.0)
+st.header("Star / Missing Players")
+home_stars = st.text_area("Home Star Players (name:rating)")
+away_stars = st.text_area("Away Star Players (name:rating)")
+home_missing = st.text_area("Home Missing Players (name:importance)")
+away_missing = st.text_area("Away Missing Players (name:importance)")
 
-home_possession = st.slider("Home Possession (%)", 0, 100, 50)
-away_possession = st.slider("Away Possession (%)", 0, 100, 50)
-home_shot_accuracy = st.slider("Home Shot Accuracy (%)", 0, 100, 50)
-away_shot_accuracy = st.slider("Away Shot Accuracy (%)", 0, 100, 50)
-
-home_xg = st.number_input("Home Expected Goals (xG)", min_value=0.0)
-home_xga = st.number_input("Home Expected Goals Against (xGA)", min_value=0.0)
-away_xg = st.number_input("Away Expected Goals (xG)", min_value=0.0)
-away_xga = st.number_input("Away Expected Goals Against (xGA)", min_value=0.0)
+st.header("Head-to-Head")
+h2h_results = st.text_area("Last 5 matches (e.g. Arsenal 2-1 Liverpool)")
 
 importance = st.selectbox("Match Importance", ["Normal", "Rivalry", "Cup Final"])
 importance_score = {"Normal": 0, "Rivalry": 1, "Cup Final": 2}[importance]
 
-# --- Missing Players ---
-st.header("Missing Players")
-home_missing = st.text_area("Home Missing Players (name:importance, one per line)")
-away_missing = st.text_area("Away Missing Players (name:importance)")
-
-# --- Star Players ---
-st.header("Star Players Available")
-home_stars = st.text_area("Home Star Players (name:rating)")
-away_stars = st.text_area("Away Star Players (name:rating)")
-
-# --- Head to Head ---
-st.header("Head to Head Results (last 5 games)")
-h2h_results = st.text_area("One per line (e.g. Arsenal 2-1 Liverpool)")
-
-# --- Intuition Boost ---
 st.header("Intuition Boost")
-intuition_boost = st.slider("Your gut feeling (favor home -1.0 to 1.0 favor away)", -1.0, 1.0, 0.0, step=0.1)
+intuition_boost = st.slider("Favor home (-1.0) to away (+1.0)", -1.0, 1.0, 0.0, 0.1)
 
-# --- Optional Actual Result Entry ---
 actual_result = st.selectbox("Actual Result (if known)", ["--", "Home Win", "Draw", "Away Win"])
 
-
-# ================= UNDERSTAT SCRAPER =================
-def fetch_understat_data(url):
-    try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            return None
-        soup = BeautifulSoup(response.content, "html.parser")
-        script = next(script for script in soup.find_all("script") if "shotsData" in script.text)
-        xg_vals = re.findall(r'"xG":([\d.]+)', script.text)
-        team_names = re.findall(r'"h":\{"title":"(.*?)"\},.*?"a":\{"title":"(.*?)"\}', script.text)
-        xg_vals = list(map(float, xg_vals))
-        team1_xg = round(sum(xg_vals[::2]), 2)
-        team2_xg = round(sum(xg_vals[1::2]), 2)
-        return {
-            "home_team": team_names[0][0],
-            "away_team": team_names[0][1],
-            "home_xg": team1_xg,
-            "away_xg": team2_xg
-        }
-    except Exception as e:
-        return None
-
-# =====================================================
-
+# --- Prediction ---
 if st.button("Predict Match Result"):
     def parse_form(form):
         scores = {'W': 3, 'D': 1, 'L': 0}
-        return sum([scores.get(x.strip(), 0) for x in form.split('-')]) / (len(form.split('-')) * 3)
+        return sum([scores.get(x.strip().upper(), 0) for x in form.split('-')]) / (len(form.split('-')) * 3) if form else 0.5
 
     def parse_players(data):
         total = 0
         for line in data.strip().split('\n'):
             try:
-                _, value = line.split(':')
+                name, value = line.split(':')
                 total += float(value.strip())
             except:
-                pass
+                continue
         return total
 
     def parse_h2h(h2h):
@@ -143,36 +130,20 @@ if st.button("Predict Match Result"):
                         draws += 1
             except:
                 continue
-        total_games = home_wins + away_wins + draws
-        if total_games == 0:
-            return 0.5
-        return (home_wins * 3 + draws) / (total_games * 3)
+        total = home_wins + away_wins + draws
+        return (home_wins * 3 + draws) / (total * 3) if total else 0.5
 
-    # Understat
-    if understat_url.strip():
-        stats = fetch_understat_data(understat_url.strip())
-        if stats:
-            home_team = stats["home_team"]
-            away_team = stats["away_team"]
-            home_xg = stats["home_xg"]
-            away_xg = stats["away_xg"]
-        else:
-            st.error("⚠️ Failed to fetch data from Understat.")
-
-    form_score_home = parse_form(home_form)
-    form_score_away = parse_form(away_form)
-    goals_score_home = home_goals_scored - home_goals_conceded
-    goals_score_away = away_goals_scored - away_goals_conceded
-    missing_penalty_home = parse_players(home_missing)
-    missing_penalty_away = parse_players(away_missing)
-    star_power_home = parse_players(home_stars)
-    star_power_away = parse_players(away_stars)
+    form_home = parse_form(home_form)
+    form_away = parse_form(away_form)
+    goal_diff_home = home_goals_scored - home_goals_conceded
+    goal_diff_away = away_goals_scored - away_goals_conceded
+    star_home = parse_players(home_stars) - parse_players(home_missing)
+    star_away = parse_players(away_stars) - parse_players(away_missing)
     h2h_score = parse_h2h(h2h_results)
 
-    features = np.array([[form_score_home, form_score_away,
-                          goals_score_home, goals_score_away,
-                          star_power_home - missing_penalty_home,
-                          star_power_away - missing_penalty_away,
+    features = np.array([[form_home, form_away,
+                          goal_diff_home, goal_diff_away,
+                          star_home, star_away,
                           h2h_score, intuition_boost,
                           (home_possession - away_possession) / 100,
                           (home_shot_accuracy - away_shot_accuracy) / 100,
@@ -180,45 +151,36 @@ if st.button("Predict Match Result"):
 
     pred = clf.predict(features)[0]
     prob = clf.predict_proba(features)[0]
-
-    # Save raw result
     result_label = ["Draw", f"{home_team} Win", f"{away_team} Win"]
     original_result = result_label[pred]
-    result = original_result
     confidence = round(np.max(prob) * 100, 1)
 
-    # Score estimate
-    net_strength_home = goals_score_home + (star_power_home - missing_penalty_home) / 10 + form_score_home
-    net_strength_away = goals_score_away + (star_power_away - missing_penalty_away) / 10 + form_score_away
-    total_strength = net_strength_home + net_strength_away + 0.01
-    expected_goals_home = round(max(0, 2.5 * (net_strength_home / total_strength)), 1)
-    expected_goals_away = round(max(0, 2.5 * (net_strength_away / total_strength)), 1)
+    net_home = goal_diff_home + star_home / 10 + form_home
+    net_away = goal_diff_away + star_away / 10 + form_away
+    total = net_home + net_away + 0.01
+    score_home = round(max(0, 2.5 * (net_home / total)), 1)
+    score_away = round(max(0, 2.5 * (net_away / total)), 1)
 
-    # Final correction
-    if abs(expected_goals_home - expected_goals_away) <= 0.4:
+    if abs(score_home - score_away) <= 0.4:
         result = "Draw"
-    elif expected_goals_home > expected_goals_away:
+    elif score_home > score_away:
         result = f"{home_team} Win"
     else:
         result = f"{away_team} Win"
 
-    # --- Output ---
-    st.subheader("🏁 Prediction Result (ML + Intuition)")
-    st.write(f"**Predicted Result:** {result}")
-    st.write(f"**Confidence Level:** {confidence:.1f}%")
-    st.write(f"**Predicted Scoreline:** {home_team} {expected_goals_home} - {expected_goals_away} {away_team}")
-    st.write(f"**ML Model Prediction (Raw):** {original_result}")
+    st.subheader("🏁 Prediction Result")
+    st.write(f"**Final Result:** {result}")
+    st.write(f"**Model Confidence:** {confidence:.1f}%")
+    st.write(f"**Predicted Scoreline:** {home_team} {score_home} - {score_away} {away_team}")
+    st.write(f"**Raw Model Output:** {original_result}")
 
-    st.subheader("🔍 Win Probability Distribution")
+    st.subheader("📊 Probability Chart")
     fig, ax = plt.subplots()
-    ax.bar([f"{home_team} Win", "Draw", f"{away_team} Win"], prob, color=['green', 'gray', 'red'])
-    ax.set_ylabel("Probability")
+    ax.bar(["Draw", f"{home_team} Win", f"{away_team} Win"], prob, color=['gray', 'green', 'red'])
     ax.set_ylim(0, 1)
     st.pyplot(fig)
 
-    outcome_map = {"Home Win": f"{home_team} Win", "Draw": "Draw", "Away Win": f"{away_team} Win"}
-    correctness = "✅" if (actual_result != "--" and result == outcome_map.get(actual_result)) else "❌" if actual_result != "--" else "N/A"
-
+    correctness = "✅" if (actual_result != "--" and result == original_result) else "❌" if actual_result != "--" else "N/A"
     st.session_state.history.append({
         "Match": f"{home_team} vs {away_team}",
         "Prediction": result,
@@ -228,10 +190,10 @@ if st.button("Predict Match Result"):
     })
 
     if st.session_state.history:
-        st.subheader("📊 Prediction History")
+        st.subheader("📚 Prediction History")
         df = pd.DataFrame(st.session_state.history)
         st.dataframe(df)
-        correct_preds = df[df['Correct'] == "✅"].shape[0]
-        total_preds = df[df['Correct'].isin(["✅", "❌"])].shape[0]
-        if total_preds > 0:
-            st.success(f"Accuracy so far: {correct_preds}/{total_preds} ({(correct_preds/total_preds)*100:.1f}%)")
+        correct_preds = df[df["Correct"] == "✅"].shape[0]
+        total_preds = df[df["Correct"].isin(["✅", "❌"])].shape[0]
+        if total_preds:
+            st.success(f"Accuracy: {correct_preds}/{total_preds} ({correct_preds / total_preds * 100:.1f}%)")
